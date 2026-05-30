@@ -1,0 +1,628 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>家庭点餐</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<!-- Firebase -->
+<script type="module">
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+  import { getDatabase, ref, set, onValue, push, remove, get }
+    from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
+
+  // ── 🔧 YOUR FIREBASE CONFIG (filled after setup) ──────────────────
+  const firebaseConfig = {
+    apiKey: "AIzaSyAv4863Ng95bhTLL4MXl4cYO5b-nsDrkhU",
+    authDomain: "kandjhome-1397d.firebaseapp.com",
+    databaseURL: "https://kandjhome-1397d-default-rtdb.firebaseio.com",
+    projectId: "kandjhome-1397d",
+    storageBucket: "kandjhome-1397d.firebasestorage.app",
+    messagingSenderId: "158755175916",
+    appId: "1:158755175916:web:d2acfd5b84a237fe9554c9"
+  };
+  // ──────────────────────────────────────────────────────────────────
+
+  const CONFIGURED = !firebaseConfig.apiKey.startsWith("REPLACE");
+
+  let app, db;
+  if (CONFIGURED) {
+    app = initializeApp(firebaseConfig);
+    db  = getDatabase(app);
+  }
+
+  window.__fb = { db, ref, set, onValue, push, remove, get, CONFIGURED };
+</script>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Ma+Shan+Zheng&family=Noto+Sans+SC:wght@300;400;500;700&display=swap');
+
+:root {
+  --bg:       #FDFAF5;
+  --card:     #FFFFFF;
+  --ink:      #1C1C1C;
+  --muted:    #9A9A9A;
+  --border:   #EDE8DF;
+  --amber:    #D4822A;
+  --amber-lt: #FBF1E6;
+  --red:      #C0392B;
+  --green:    #3A7D52;
+  --green-lt: #EAF4EE;
+  --shadow:   0 2px 16px rgba(0,0,0,0.07);
+  --shadow-lg:0 8px 32px rgba(0,0,0,0.13);
+  --r:        14px;
+}
+*{box-sizing:border-box;margin:0;padding:0;}
+html,body{height:100%;background:var(--bg);color:var(--ink);font-family:'Noto Sans SC',sans-serif;}
+
+/* ── NAV ── */
+.nav{
+  display:flex;background:var(--card);border-bottom:1px solid var(--border);
+  position:sticky;top:0;z-index:100;box-shadow:0 1px 6px rgba(0,0,0,0.05);
+}
+.nav-btn{
+  flex:1;padding:13px 6px;border:none;background:none;
+  font-family:'Noto Sans SC',sans-serif;font-size:13px;font-weight:500;
+  color:var(--muted);cursor:pointer;border-bottom:2px solid transparent;
+  transition:all .2s;letter-spacing:.3px;
+}
+.nav-btn.active{color:var(--amber);border-bottom-color:var(--amber);}
+
+/* ── PAGE ── */
+.page{display:none;padding-bottom:90px;}
+.page.active{display:block;}
+
+/* ── MENU PAGE ── */
+.menu-hero{
+  background:linear-gradient(135deg,#3a1a00 0%,#7a3a10 60%,#c8783a 100%);
+  padding:28px 20px 24px;text-align:center;position:relative;overflow:hidden;
+}
+.menu-hero::before{
+  content:'';position:absolute;inset:0;
+  background:url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23ffffff' fill-opacity='0.04'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E");
+}
+.menu-hero h1{
+  font-family:'Ma Shan Zheng',cursive;font-size:32px;color:#fff;
+  letter-spacing:4px;position:relative;text-shadow:0 2px 8px rgba(0,0,0,.3);
+}
+.menu-hero .date{
+  font-size:13px;color:rgba(255,255,255,.75);margin-top:6px;
+  position:relative;letter-spacing:1px;
+}
+
+.dishes-grid{
+  display:grid;grid-template-columns:1fr 1fr;gap:12px;
+  padding:16px;max-width:520px;margin:0 auto;
+}
+.dish-card{
+  background:var(--card);border-radius:var(--r);overflow:hidden;
+  box-shadow:var(--shadow);cursor:pointer;
+  border:2.5px solid transparent;transition:all .2s;
+  position:relative;
+}
+.dish-card:active{transform:scale(.97);}
+.dish-card.selected{border-color:var(--amber);box-shadow:0 0 0 4px var(--amber-lt);}
+.dish-img{
+  width:100%;aspect-ratio:4/3;object-fit:cover;
+  background:var(--border);display:block;
+}
+.dish-img-placeholder{
+  width:100%;aspect-ratio:4/3;background:linear-gradient(135deg,#f5ede0,#e8d5b8);
+  display:flex;align-items:center;justify-content:center;font-size:40px;
+}
+.dish-body{padding:10px 12px 12px;}
+.dish-name{font-size:15px;font-weight:700;color:var(--ink);}
+.dish-note{font-size:12px;color:var(--muted);margin-top:3px;line-height:1.4;}
+.dish-check{
+  position:absolute;top:8px;right:8px;width:26px;height:26px;
+  border-radius:50%;background:var(--card);border:2px solid var(--border);
+  display:flex;align-items:center;justify-content:center;
+  font-size:14px;transition:all .2s;box-shadow:0 1px 4px rgba(0,0,0,.1);
+}
+.dish-card.selected .dish-check{background:var(--amber);border-color:var(--amber);color:#fff;}
+
+.empty-menu{
+  text-align:center;padding:60px 20px;color:var(--muted);
+}
+.empty-menu .ei{font-size:52px;margin-bottom:12px;}
+.empty-menu p{font-size:14px;line-height:1.8;}
+
+/* ── CART BAR ── */
+.cart-bar{
+  position:fixed;bottom:0;left:0;right:0;
+  background:var(--card);border-top:1px solid var(--border);
+  padding:12px 16px 20px;display:flex;align-items:center;gap:12px;
+  max-width:520px;margin:0 auto;z-index:99;
+  box-shadow:0 -4px 20px rgba(0,0,0,.06);
+}
+.cart-info{flex:1;}
+.cart-info .ci-label{font-size:12px;color:var(--muted);}
+.cart-info .ci-names{font-size:14px;font-weight:500;color:var(--ink);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:180px;}
+.submit-btn{
+  background:var(--amber);color:#fff;border:none;border-radius:24px;
+  padding:13px 26px;font-family:'Noto Sans SC',sans-serif;
+  font-size:15px;font-weight:500;cursor:pointer;transition:all .2s;
+  white-space:nowrap;letter-spacing:.5px;
+}
+.submit-btn:hover{background:#b56820;transform:translateY(-1px);}
+.submit-btn:disabled{background:var(--border);color:var(--muted);cursor:not-allowed;transform:none;}
+
+/* ── MODAL ── */
+.modal-backdrop{
+  position:fixed;inset:0;background:rgba(0,0,0,.45);
+  display:none;align-items:flex-end;justify-content:center;
+  z-index:200;padding:0;
+}
+.modal-backdrop.show{display:flex;}
+.modal-sheet{
+  background:var(--card);border-radius:20px 20px 0 0;
+  width:100%;max-width:520px;padding:24px 20px 36px;
+  animation:slideUp .3s ease;
+}
+@keyframes slideUp{from{transform:translateY(60px);opacity:0;}to{transform:translateY(0);opacity:1;}}
+.modal-handle{width:40px;height:4px;background:var(--border);border-radius:2px;margin:0 auto 20px;}
+.modal-title{font-family:'Ma Shan Zheng',cursive;font-size:22px;color:var(--ink);margin-bottom:16px;text-align:center;letter-spacing:2px;}
+.order-preview{
+  background:var(--bg);border-radius:10px;padding:14px;margin-bottom:14px;
+}
+.op-item{
+  display:flex;align-items:center;gap:10px;padding:8px 0;
+  border-bottom:1px solid var(--border);
+}
+.op-item:last-child{border-bottom:none;}
+.op-img{width:40px;height:40px;border-radius:8px;object-fit:cover;background:var(--border);}
+.op-name{font-size:14px;font-weight:500;}
+.note-field{
+  width:100%;border:1.5px solid var(--border);border-radius:10px;
+  padding:11px 14px;font-family:'Noto Sans SC',sans-serif;font-size:14px;
+  color:var(--ink);background:var(--bg);outline:none;resize:none;
+  transition:border-color .2s;margin-bottom:14px;
+}
+.note-field:focus{border-color:var(--amber);}
+.confirm-btn{
+  width:100%;background:var(--green);color:#fff;border:none;border-radius:12px;
+  padding:15px;font-family:'Noto Sans SC',sans-serif;font-size:16px;
+  font-weight:500;cursor:pointer;letter-spacing:1px;transition:all .2s;
+}
+.confirm-btn:hover{background:#2d6340;}
+
+/* ── ADMIN PAGE ── */
+.admin-wrap{padding:20px;max-width:520px;margin:0 auto;}
+.admin-wrap h2{font-family:'Ma Shan Zheng',cursive;font-size:24px;letter-spacing:2px;margin-bottom:4px;}
+.admin-wrap .sub{font-size:13px;color:var(--muted);margin-bottom:20px;}
+
+.section-box{
+  background:var(--card);border-radius:var(--r);padding:18px;
+  margin-bottom:16px;box-shadow:var(--shadow);
+}
+.section-box h3{
+  font-size:11px;font-weight:700;color:var(--muted);
+  text-transform:uppercase;letter-spacing:1.5px;margin-bottom:14px;
+}
+
+.dish-row{display:flex;flex-direction:column;gap:6px;margin-bottom:14px;padding-bottom:14px;border-bottom:1px solid var(--border);}
+.dish-row:last-of-type{border-bottom:none;margin-bottom:0;padding-bottom:0;}
+.row-top{display:flex;gap:8px;align-items:center;}
+.row-top input{
+  flex:1;border:1.5px solid var(--border);border-radius:8px;
+  padding:9px 11px;font-family:'Noto Sans SC',sans-serif;font-size:14px;
+  color:var(--ink);background:var(--bg);outline:none;transition:border-color .2s;
+}
+.row-top input:focus{border-color:var(--amber);}
+.emoji-inp{flex:0 0 52px!important;text-align:center;font-size:20px;}
+.del-btn{
+  width:34px;height:34px;border:1.5px solid var(--border);border-radius:8px;
+  background:none;cursor:pointer;color:var(--muted);font-size:18px;
+  display:flex;align-items:center;justify-content:center;
+  transition:all .2s;flex-shrink:0;
+}
+.del-btn:hover{background:#fee;border-color:var(--red);color:var(--red);}
+.img-row input{
+  width:100%;border:1.5px solid var(--border);border-radius:8px;
+  padding:8px 11px;font-family:'Noto Sans SC',sans-serif;font-size:12px;
+  color:var(--muted);background:var(--bg);outline:none;transition:border-color .2s;
+}
+.img-row input:focus{border-color:var(--amber);}
+.img-preview{
+  width:56px;height:42px;border-radius:6px;object-fit:cover;
+  border:1px solid var(--border);display:none;margin-top:4px;
+}
+
+.add-btn{
+  width:100%;border:1.5px dashed var(--border);border-radius:10px;
+  padding:11px;background:none;font-family:'Noto Sans SC',sans-serif;
+  font-size:14px;color:var(--muted);cursor:pointer;transition:all .2s;
+}
+.add-btn:hover{border-color:var(--amber);color:var(--amber);background:var(--amber-lt);}
+
+.save-btn{
+  width:100%;background:var(--amber);color:#fff;border:none;border-radius:12px;
+  padding:14px;font-family:'Noto Sans SC',sans-serif;font-size:15px;
+  font-weight:500;cursor:pointer;transition:all .2s;
+  margin-bottom:16px;letter-spacing:.5px;
+}
+.save-btn:hover{background:#b56820;}
+
+/* firebase setup notice */
+.setup-notice{
+  background:#fff8e1;border:1.5px solid #ffe082;border-radius:10px;
+  padding:14px 16px;margin-bottom:16px;font-size:13px;line-height:1.7;color:#7a5c00;
+}
+.setup-notice strong{display:block;margin-bottom:4px;font-size:14px;}
+.setup-notice code{background:#fff3cd;padding:1px 5px;border-radius:4px;font-family:monospace;font-size:12px;}
+
+/* QR */
+.qr-wrap{display:flex;flex-direction:column;align-items:center;gap:12px;}
+#qr-box{background:#fff;padding:14px;border-radius:10px;border:1px solid var(--border);}
+.qr-url{font-size:11px;color:var(--muted);word-break:break-all;text-align:center;max-width:260px;}
+.qr-hint{font-size:13px;color:var(--muted);text-align:center;line-height:1.7;}
+
+/* ── ORDERS PAGE ── */
+.orders-wrap{padding:20px;max-width:520px;margin:0 auto;}
+.orders-wrap h2{font-family:'Ma Shan Zheng',cursive;font-size:24px;letter-spacing:2px;margin-bottom:4px;}
+.orders-wrap .sub{font-size:13px;color:var(--muted);margin-bottom:20px;}
+
+.order-card{
+  background:var(--card);border-radius:var(--r);padding:16px 18px;
+  margin-bottom:12px;box-shadow:var(--shadow);
+  border-left:3px solid var(--amber);
+}
+.order-card .oc-time{font-size:12px;color:var(--muted);margin-bottom:10px;}
+.order-items-row{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px;}
+.oi-thumb{
+  display:flex;flex-direction:column;align-items:center;gap:4px;
+}
+.oi-img{width:52px;height:52px;border-radius:8px;object-fit:cover;background:var(--border);}
+.oi-ph{width:52px;height:52px;border-radius:8px;background:var(--amber-lt);display:flex;align-items:center;justify-content:center;font-size:22px;}
+.oi-name{font-size:11px;color:var(--muted);max-width:56px;text-align:center;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.oc-note{font-size:13px;color:var(--muted);font-style:italic;margin-top:6px;}
+.oc-badge{
+  display:inline-block;font-size:11px;padding:3px 10px;border-radius:20px;
+  background:var(--green-lt);color:var(--green);margin-top:8px;font-weight:500;
+}
+.new-badge{background:#fff3cd;color:#a07000;}
+
+.refresh-btn{
+  width:100%;border:1.5px solid var(--border);border-radius:10px;
+  padding:11px;background:none;font-family:'Noto Sans SC',sans-serif;
+  font-size:13px;color:var(--muted);cursor:pointer;margin-top:4px;
+  transition:all .2s;
+}
+.refresh-btn:hover{border-color:var(--amber);color:var(--amber);}
+
+.empty-orders{text-align:center;padding:56px 20px;color:var(--muted);}
+.empty-orders .ei{font-size:52px;margin-bottom:12px;}
+.empty-orders p{font-size:14px;line-height:1.8;}
+
+/* ── TOAST ── */
+.toast{
+  position:fixed;bottom:90px;left:50%;
+  transform:translateX(-50%) translateY(16px);
+  background:rgba(28,28,28,.92);color:#fff;
+  padding:10px 20px;border-radius:24px;font-size:14px;
+  opacity:0;transition:all .3s;z-index:999;white-space:nowrap;
+  backdrop-filter:blur(6px);
+}
+.toast.show{opacity:1;transform:translateX(-50%) translateY(0);}
+</style>
+</head>
+<body>
+
+<nav class="nav">
+  <button class="nav-btn active" onclick="go('menu',this)">🍽 今日菜单</button>
+  <button class="nav-btn" onclick="go('admin',this)">✏️ 编辑菜单</button>
+  <button class="nav-btn" onclick="go('orders',this)">📋 收到订单</button>
+</nav>
+
+<!-- ══ MENU ══ -->
+<div id="pg-menu" class="page active">
+  <div class="menu-hero">
+    <h1>今日菜单</h1>
+    <div class="date" id="hero-date"></div>
+  </div>
+  <div class="dishes-grid" id="dishes-grid"></div>
+
+  <div class="cart-bar">
+    <div class="cart-info">
+      <div class="ci-label">已选</div>
+      <div class="ci-names" id="cart-names">—</div>
+    </div>
+    <button class="submit-btn" id="submit-btn" disabled onclick="openModal()">提交订单 →</button>
+  </div>
+</div>
+
+<!-- ══ ADMIN ══ -->
+<div id="pg-admin" class="page">
+  <div class="admin-wrap">
+    <h2>编辑菜单</h2>
+    <p class="sub">每天更新今天想吃的菜 🍳</p>
+
+    <div id="firebase-notice" class="setup-notice" style="display:none">
+      <strong>⚠️ 需要配置 Firebase</strong>
+      请按照页面底部的说明文件完成配置，才能实现多设备同步。
+    </div>
+
+    <div class="section-box">
+      <h3>菜品列表</h3>
+      <div id="dish-editor"></div>
+      <button class="add-btn" onclick="addRow()">＋ 再加一道菜</button>
+    </div>
+
+    <button class="save-btn" onclick="saveMenu()">✓ 保存并发布菜单</button>
+
+    <div class="section-box">
+      <h3>二维码</h3>
+      <div class="qr-wrap">
+        <div id="qr-box"></div>
+        <div class="qr-url" id="qr-url"></div>
+        <p class="qr-hint">发给老公扫码，打开「今日菜单」即可点餐 📱</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══ ORDERS ══ -->
+<div id="pg-orders" class="page">
+  <div class="orders-wrap">
+    <h2>收到的订单</h2>
+    <p class="sub">老公的点餐记录 💌</p>
+    <div id="orders-list"></div>
+    <button class="refresh-btn" onclick="loadOrders()">↻ 刷新订单</button>
+  </div>
+</div>
+
+<!-- ══ ORDER MODAL ══ -->
+<div class="modal-backdrop" id="modal" onclick="closeModal(event)">
+  <div class="modal-sheet">
+    <div class="modal-handle"></div>
+    <div class="modal-title">确认点餐</div>
+    <div class="order-preview" id="preview-list"></div>
+    <textarea class="note-field" id="order-note" rows="2" placeholder="备注（如：少放辣、早点开始做…）"></textarea>
+    <button class="confirm-btn" onclick="submitOrder()">🎉 提交给老婆！</button>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script type="module">
+const { db, ref, set, onValue, push, remove, get, CONFIGURED } = window.__fb;
+
+// ── STATE ──
+let dishes   = [];
+let selected = new Set();
+let seenIds  = new Set(JSON.parse(localStorage.getItem('seenOrders')||'[]'));
+
+// ── INIT ──
+const days = ['周日','周一','周二','周三','周四','周五','周六'];
+const now  = new Date();
+document.getElementById('hero-date').textContent =
+  `${now.getFullYear()}年${now.getMonth()+1}月${now.getDate()}日 ${days[now.getDay()]}`;
+
+if (!CONFIGURED) {
+  document.getElementById('firebase-notice').style.display = 'block';
+  dishes = JSON.parse(localStorage.getItem('localDishes') || 'null') || defaultDishes();
+  renderMenu();
+  buildEditor();
+  genQR();
+} else {
+  // Live sync menu
+  onValue(ref(db,'menu/dishes'), snap => {
+    dishes = snap.val() ? Object.values(snap.val()) : defaultDishes();
+    renderMenu();
+  });
+  genQR();
+}
+
+// ── DEFAULTS ──
+function defaultDishes(){
+  return [
+    {id:'d1',emoji:'🥩',name:'红烧肉',note:'经典家常',img:''},
+    {id:'d2',emoji:'🥦',name:'清炒西兰花',note:'健康蔬菜',img:''},
+    {id:'d3',emoji:'🍳',name:'番茄炒蛋',note:'百吃不厌',img:''},
+    {id:'d4',emoji:'🍲',name:'排骨汤',note:'炖两小时',img:''},
+  ];
+}
+
+// ── RENDER MENU ──
+function renderMenu(){
+  const g = document.getElementById('dishes-grid');
+  if(!dishes.length){
+    g.innerHTML='<div class="empty-menu" style="grid-column:1/-1"><div class="ei">🍽</div><p>今天还没有菜单<br>请到「编辑菜单」添加</p></div>';
+    return;
+  }
+  g.innerHTML = dishes.map(d=>{
+    const sel = selected.has(d.id);
+    const imgHTML = d.img
+      ? `<img class="dish-img" src="${d.img}" onerror="this.style.display='none';this.nextSibling.style.display='flex'" loading="lazy"><div class="dish-img-placeholder" style="display:none">${d.emoji||'🍽'}</div>`
+      : `<div class="dish-img-placeholder">${d.emoji||'🍽'}</div>`;
+    return `
+    <div class="dish-card ${sel?'selected':''}" onclick="toggle('${d.id}')">
+      ${imgHTML}
+      <div class="dish-body">
+        <div class="dish-name">${d.name}</div>
+        ${d.note?`<div class="dish-note">${d.note}</div>`:''}
+      </div>
+      <div class="dish-check">${sel?'✓':''}</div>
+    </div>`;
+  }).join('');
+  updateCart();
+}
+
+// ── TOGGLE ──
+window.toggle = id => {
+  selected.has(id) ? selected.delete(id) : selected.add(id);
+  renderMenu();
+};
+function updateCart(){
+  const names = dishes.filter(d=>selected.has(d.id)).map(d=>d.name);
+  document.getElementById('cart-names').textContent = names.join('、') || '—';
+  document.getElementById('submit-btn').disabled = !names.length;
+}
+
+// ── MODAL ──
+window.openModal = ()=>{
+  const sel = dishes.filter(d=>selected.has(d.id));
+  document.getElementById('preview-list').innerHTML = sel.map(d=>`
+    <div class="op-item">
+      ${d.img?`<img class="op-img" src="${d.img}" onerror="this.src=''">`:
+               `<div style="width:40px;height:40px;border-radius:8px;background:var(--amber-lt);display:flex;align-items:center;justify-content:center;font-size:20px">${d.emoji}</div>`}
+      <div class="op-name">${d.name}</div>
+    </div>`).join('');
+  document.getElementById('order-note').value='';
+  document.getElementById('modal').classList.add('show');
+};
+window.closeModal = e=>{
+  if(e.target.id==='modal') document.getElementById('modal').classList.remove('show');
+};
+
+// ── SUBMIT ORDER ──
+window.submitOrder = async ()=>{
+  const sel  = dishes.filter(d=>selected.has(d.id));
+  const note = document.getElementById('order-note').value.trim();
+  const order = {
+    time: new Date().toLocaleString('zh-CN'),
+    ts:   Date.now(),
+    items: sel.map(d=>({id:d.id,name:d.name,emoji:d.emoji||'🍽',img:d.img||''})),
+    note,
+  };
+  if(CONFIGURED){
+    await push(ref(db,'orders'), order);
+  } else {
+    const all = JSON.parse(localStorage.getItem('localOrders')||'[]');
+    order.id = 'o'+Date.now();
+    all.unshift(order);
+    localStorage.setItem('localOrders', JSON.stringify(all));
+  }
+  document.getElementById('modal').classList.remove('show');
+  selected.clear();
+  renderMenu();
+  toast('✓ 已提交！老婆会看到 💕');
+};
+
+// ── LOAD ORDERS ──
+window.loadOrders = async ()=>{
+  const el = document.getElementById('orders-list');
+  let orders=[];
+  if(CONFIGURED){
+    const snap = await get(ref(db,'orders'));
+    if(snap.val()) orders = Object.entries(snap.val()).map(([k,v])=>({...v,_key:k})).reverse();
+  } else {
+    orders = JSON.parse(localStorage.getItem('localOrders')||'[]');
+  }
+  if(!orders.length){
+    el.innerHTML='<div class="empty-orders"><div class="ei">📭</div><p>还没有订单<br>让老公扫码去「今日菜单」点餐吧~</p></div>';
+    return;
+  }
+  el.innerHTML = orders.map(o=>{
+    const isNew = !seenIds.has(o.ts+'');
+    return `
+    <div class="order-card">
+      <div class="oc-time">🕐 ${o.time} ${isNew?'<span class="oc-badge new-badge">NEW</span>':''}</div>
+      <div class="order-items-row">
+        ${(o.items||[]).map(it=>`
+          <div class="oi-thumb">
+            ${it.img?`<img class="oi-img" src="${it.img}" onerror="this.style.display='none';this.nextSibling.style.display='flex'">
+                      <div class="oi-ph" style="display:none">${it.emoji}</div>`
+                    :`<div class="oi-ph">${it.emoji}</div>`}
+            <div class="oi-name">${it.name}</div>
+          </div>`).join('')}
+      </div>
+      ${o.note?`<div class="oc-note">💬 ${o.note}</div>`:''}
+      <span class="oc-badge">✓ 已收到</span>
+    </div>`;
+  }).join('');
+  // mark seen
+  orders.forEach(o=>seenIds.add(o.ts+''));
+  localStorage.setItem('seenOrders', JSON.stringify([...seenIds]));
+};
+
+// ── ADMIN / EDITOR ──
+let edRows = [];
+window.buildEditor = function(){
+  edRows = JSON.parse(JSON.stringify(dishes));
+  reRenderEditor();
+};
+window.addRow = ()=>{
+  edRows.push({id:'d'+Date.now(),emoji:'🍽',name:'',note:'',img:''});
+  reRenderEditor();
+  setTimeout(()=>{
+    const ns = document.querySelectorAll('.dish-row .name-inp');
+    if(ns.length) ns[ns.length-1].focus();
+  },50);
+};
+window.removeRow = i=>{edRows.splice(i,1);reRenderEditor();};
+function reRenderEditor(){
+  document.getElementById('dish-editor').innerHTML = edRows.map((d,i)=>`
+    <div class="dish-row">
+      <div class="row-top">
+        <input class="emoji-inp" value="${d.emoji||'🍽'}" maxlength="2" placeholder="🍽"
+          oninput="edRows[${i}].emoji=this.value">
+        <input class="name-inp" value="${d.name}" placeholder="菜名（必填）"
+          oninput="edRows[${i}].name=this.value">
+        <input value="${d.note||''}" placeholder="备注"
+          oninput="edRows[${i}].note=this.value">
+        <button class="del-btn" onclick="removeRow(${i})">×</button>
+      </div>
+      <div class="img-row" style="display:flex;gap:8px;align-items:center">
+        <input value="${d.img||''}" placeholder="菜品图片网址（可选，粘贴图片链接）"
+          oninput="edRows[${i}].img=this.value;previewImg(${i},this.value)">
+        <img class="img-preview" id="prev-${i}" src="${d.img||''}" style="display:${d.img?'block':'none'}">
+      </div>
+    </div>`).join('');
+}
+window.previewImg=(i,url)=>{
+  const el = document.getElementById('prev-'+i);
+  if(url){el.src=url;el.style.display='block';}
+  else el.style.display='none';
+};
+window.saveMenu = async ()=>{
+  // read latest values from DOM
+  document.querySelectorAll('#dish-editor .dish-row').forEach((row,i)=>{
+    const inps = row.querySelectorAll('input');
+    edRows[i].emoji = inps[0].value||'🍽';
+    edRows[i].name  = inps[1].value;
+    edRows[i].note  = inps[2].value;
+    edRows[i].img   = inps[3].value;
+  });
+  const clean = edRows.filter(d=>d.name.trim());
+  if(CONFIGURED){
+    const obj={};clean.forEach(d=>{obj[d.id]=d;});
+    await set(ref(db,'menu/dishes'), obj);
+  } else {
+    dishes = clean;
+    localStorage.setItem('localDishes', JSON.stringify(dishes));
+    renderMenu();
+  }
+  toast('✓ 菜单已保存！');
+};
+
+// ── QR ──
+function genQR(){
+  const url = window.location.href.split('?')[0];
+  document.getElementById('qr-url').textContent = url;
+  document.getElementById('qr-box').innerHTML='';
+  new QRCode(document.getElementById('qr-box'),{
+    text:url,width:180,height:180,
+    colorDark:'#1C1C1C',colorLight:'#FFFFFF',
+    correctLevel:QRCode.CorrectLevel.M
+  });
+}
+
+// ── TAB ──
+window.go=(id,btn)=>{
+  document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
+  document.querySelectorAll('.nav-btn').forEach(b=>b.classList.remove('active'));
+  document.getElementById('pg-'+id).classList.add('active');
+  btn.classList.add('active');
+  if(id==='orders') loadOrders();
+  if(id==='admin')  buildEditor();
+};
+
+// ── TOAST ──
+window.toast = msg=>{
+  const t=document.getElementById('toast');
+  t.textContent=msg;t.classList.add('show');
+  setTimeout(()=>t.classList.remove('show'),2800);
+};
+</script>
+</body>
+</html>
